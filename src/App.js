@@ -1,95 +1,123 @@
-// ================= src/App.jsx =================
 import React, { useState } from "react";
+import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
+
+import Shop from "./pages/Shop";
+import Login from "./components/Login";
+import Register from "./components/Register";
 import Checkout from "./components/Checkout";
-
-
-const products = [
-{ id: 1, name: "Áo thun nam", price: 150000, image: "https://via.placeholder.com/200" },
-{ id: 2, name: "Quần jean nữ", price: 350000, image: "https://via.placeholder.com/200" },
-{ id: 3, name: "Giày sneaker", price: 800000, image: "https://via.placeholder.com/200" },
-];
-
+import AdminDashboard from "./pages/AdminDashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
-const [cart, setCart] = useState([]);
-const [showCheckout, setShowCheckout] = useState(false);
+  const [cart, setCart] = useState([]);
+  const [user, setUser] = useState(null);
 
+  // ===== CART =====
+  const addToCart = (product) => {
+    setCart((prev) => {
+      const exist = prev.find((p) => p.id === product.id);
+      if (exist) {
+        return prev.map((p) =>
+          p.id === product.id ? { ...p, qty: p.qty + 1 } : p
+        );
+      }
+      return [...prev, { ...product, qty: 1 }];
+    });
+  };
 
-const addToCart = (product) => {
-const exist = cart.find((i) => i.id === product.id);
-if (exist) {
-setCart(cart.map((i) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i));
-} else {
-setCart([...cart, { ...product, qty: 1 }]);
-}
-};
+  const increaseQty = (id) =>
+    setCart(cart.map((p) => (p.id === id ? { ...p, qty: p.qty + 1 } : p)));
 
+  const decreaseQty = (id) =>
+    setCart(
+      cart
+        .map((p) => (p.id === id ? { ...p, qty: p.qty - 1 } : p))
+        .filter((p) => p.qty > 0)
+    );
 
-const increaseQty = (id) => setCart(cart.map(i => i.id === id ? { ...i, qty: i.qty + 1 } : i));
-const decreaseQty = (id) => setCart(cart.map(i => i.id === id ? { ...i, qty: i.qty - 1 } : i).filter(i => i.qty > 0));
+  const removeFromCart = (id) =>
+    setCart(cart.filter((p) => p.id !== id));
 
+  const total = cart.reduce((s, p) => s + p.price * p.qty, 0);
 
-const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  // ===== AUTH =====
+  const logout = () => {
+    localStorage.removeItem("token");
+    setUser(null);
+  };
 
+  return (
+    <BrowserRouter>
+      {/* HEADER */}
+      <header className="bg-blue-600 text-white p-4 flex justify-between">
+        <Link to="/" className="font-bold text-xl">
+          Shop Online
+        </Link>
 
-const submitOrder = (form) => {
-alert(`Đặt hàng thành công!\n${form.name} - ${form.phone}\nTổng tiền: ${total.toLocaleString()} đ`);
-setCart([]);
-setShowCheckout(false);
-};
+        <div className="flex gap-4 items-center">
+          {!user && <Link to="/login">Đăng nhập</Link>}
+          {!user && <Link to="/register">Đăng ký</Link>}
 
+          {user && <span>{user.email}</span>}
 
-if (showCheckout) {
-return <Checkout cart={cart} total={total} onBack={() => setShowCheckout(false)} onSubmit={submitOrder} />;
-}
+          {user?.role === "admin" && (
+            <Link to="/admin" className="bg-yellow-400 text-black px-2 rounded">
+              Admin
+            </Link>
+          )}
 
+          {user && (
+            <button onClick={logout} className="bg-red-500 px-2 rounded">
+              Đăng xuất
+            </button>
+          )}
+        </div>
+      </header>
 
-return (
-<div className="min-h-screen bg-gray-100 pb-32">
-<header className="bg-blue-600 text-white p-4 flex justify-between">
-<h1 className="text-xl font-bold">Shop Online</h1>
-<div>🛒 {cart.reduce((s, i) => s + i.qty, 0)}</div>
-</header>
+      {/* ROUTES */}
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Shop
+              cart={cart}
+              addToCart={addToCart}
+              increaseQty={increaseQty}
+              decreaseQty={decreaseQty}
+              removeFromCart={removeFromCart}
+              total={total}
+            />
+          }
+        />
 
+        <Route
+          path="/login"
+          element={user ? <Navigate to="/" /> : <Login onLogin={setUser} />}
+        />
 
-<main className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-{products.map((p) => (
-<div key={p.id} className="bg-white rounded-2xl shadow p-4">
-<img src={p.image} className="rounded mb-3" />
-<h2 className="font-semibold">{p.name}</h2>
-<p className="text-blue-600 font-bold mb-2">{p.price.toLocaleString()} đ</p>
-<button onClick={() => addToCart(p)} className="w-full bg-blue-500 text-white py-2 rounded">Thêm vào giỏ</button>
-</div>
-))}
-</main>
+        <Route
+          path="/register"
+          element={user ? <Navigate to="/" /> : <Register onLogin={setUser} />}
+        />
 
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute user={user}>
+              <Checkout cart={cart} total={total} />
+            </ProtectedRoute>
+          }
+        />
 
-<footer className="fixed bottom-0 left-0 right-0 bg-white p-4 shadow">
-<div className="max-w-5xl mx-auto">
-{cart.map((i) => (
-<div key={i.id} className="flex justify-between items-center text-sm border-t py-1">
-<span>{i.name}</span>
-<div className="flex gap-2">
-<button onClick={() => decreaseQty(i.id)}>-</button>
-<span>{i.qty}</span>
-<button onClick={() => increaseQty(i.id)}>+</button>
-</div>
-<span>{(i.price * i.qty).toLocaleString()} đ</span>
-</div>
-))}
-
-
-<div className="flex justify-between font-bold mt-2">
-<span>Tổng</span>
-<span>{total.toLocaleString()} đ</span>
-</div>
-
-
-{cart.length > 0 && (
-<button onClick={() => setShowCheckout(true)} className="w-full bg-green-500 text-white py-2 rounded mt-2">Thanh toán</button>
-)}
-</div>
-</footer>
-</div>
-);
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute user={user} adminOnly>
+              <AdminDashboard user={user} />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  );
 }
